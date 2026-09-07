@@ -17,10 +17,11 @@ pub struct JumpTableData<'a> {
 /// Number of DP buffer slots for double buffering
 const NUM_SLOTS: usize = 2;
 
-/// One slot of DP-related buffers (dp_buffer + dp_count + staging + bind_group)
+/// One slot of DP-related buffers (dp_buffer + dp_count + dp_overflow + staging + bind_group)
 struct DpSlot {
     dp_buffer: Buffer,
     dp_count_buffer: Buffer,
+    dp_overflow_buffer: Buffer,
     staging_buffer: Buffer,
     bind_group: BindGroup,
 }
@@ -92,6 +93,12 @@ impl GpuBuffers {
                 &[0u32],
             );
 
+            let dp_overflow_buffer = ctx.create_buffer_init(
+                &format!("DP Overflow Buffer {label_suffix}"),
+                BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
+                &[0u32],
+            );
+
             let staging_buffer = ctx.create_buffer::<u8>(
                 &format!("Staging Buffer {label_suffix}"),
                 BufferUsages::MAP_READ | BufferUsages::COPY_DST,
@@ -130,12 +137,17 @@ impl GpuBuffers {
                         binding: 5,
                         resource: dp_count_buffer.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: dp_overflow_buffer.as_entire_binding(),
+                    },
                 ],
             });
 
             Ok(DpSlot {
                 dp_buffer,
                 dp_count_buffer,
+                dp_overflow_buffer,
                 staging_buffer,
                 bind_group,
             })
@@ -170,5 +182,10 @@ impl GpuBuffers {
     /// Get the staging buffer for a given slot
     pub fn staging_buffer(&self, slot: usize) -> &Buffer {
         &self.slots[slot].staging_buffer
+    }
+
+    /// Get the DP overflow buffer for a given slot
+    pub fn dp_overflow_buffer(&self, slot: usize) -> &Buffer {
+        &self.slots[slot].dp_overflow_buffer
     }
 }

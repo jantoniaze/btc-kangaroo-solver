@@ -49,6 +49,7 @@ struct DistinguishedPoint {
 @group(0) @binding(3) var<storage, read_write> kangaroos: array<Kangaroo>;
 @group(0) @binding(4) var<storage, read_write> dp_buffer: array<DistinguishedPoint>;
 @group(0) @binding(5) var<storage, read_write> dp_count: atomic<u32>;
+@group(0) @binding(6) var<storage, read_write> dp_overflow: atomic<u32>;
 
 // Shared memory for batch inversion (tree-based Montgomery's trick)
 // Product tree + saved right-child products for inverse propagation
@@ -72,6 +73,9 @@ fn store_dp(k: Kangaroo, kangaroo_id: u32) {
         dp.kangaroo_id = kangaroo_id;
         dp._padding = array<u32, 6>(0u, 0u, 0u, 0u, 0u, 0u);
         dp_buffer[idx] = dp;
+    } else {
+        // DP buffer full - mark overflow so CPU can detect and warn
+        atomicStore(&dp_overflow, 1u);
     }
 }
 

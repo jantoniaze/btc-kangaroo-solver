@@ -127,6 +127,10 @@ pub struct Args {
     /// Modular residue (hex): class residue for constraint (0 ≤ R < M) [e.g. 25 = 37]
     #[arg(long, default_value = "0")]
     mod_start: String,
+
+    /// GPU poll timeout in seconds (default: 15)
+    #[arg(long, default_value = "15")]
+    gpu_timeout: u64,
 }
 
 #[derive(Serialize)]

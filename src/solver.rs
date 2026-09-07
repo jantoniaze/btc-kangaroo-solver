@@ -14,10 +14,9 @@ use k256::ProjectivePoint;
 use std::time::{Duration, Instant};
 use tracing::info;
 
-/// Maximum time to wait for a single GPU poll before treating the device as unresponsive.
-/// Generous enough for slow GPUs with high steps_per_call, short enough to unblock
-/// multi-GPU shutdown and avoid indefinite hangs on wedged drivers.
-const GPU_POLL_TIMEOUT: Duration = Duration::from_secs(5);
+/// Default GPU poll timeout (5 seconds).
+/// Can be overridden via KangarooSolver::with_timeout() or CLI --gpu-timeout.
+const DEFAULT_GPU_POLL_TIMEOUT: Duration = Duration::from_secs(5);
 
 const MAX_DISTINGUISHED_POINTS: u32 = 65_536;
 const JUMP_TABLE_SIZE: u32 = 256;
@@ -45,9 +44,16 @@ pub struct KangarooSolver {
     workgroup_size: u32,
     current_slot: usize,
     prev_submission: Option<wgpu::SubmissionIndex>,
+    gpu_poll_timeout: Duration,
 }
 
 impl KangarooSolver {
+    /// Set custom GPU poll timeout
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.gpu_poll_timeout = timeout;
+        self
+    }
+
     fn dp_meta(dp_bits: u32) -> [u32; 4] {
         let full_limbs = (dp_bits / 32).min(8);
         let rem = dp_bits % 32;
@@ -182,13 +188,13 @@ impl KangarooSolver {
         upload_kangaroos(ctx, &buffers, kangaroos)?;
 
         // warmup
-        Self::dispatch_once_raw(ctx, &pipeline, &buffers, num_kangaroos, variant.size())?;
+        Self::dispatch_once_raw(ctx, &pipeline, &buffers, num_kangaroos, variant.size(), DEFAULT_GPU_POLL_TIMEOUT)?;
 
         ctx.queue
             .write_buffer(buffers.dp_count_buffer(0), 0, &[0u8; 4]);
 
         let start = Instant::now();
-        Self::dispatch_once_raw(ctx, &pipeline, &buffers, num_kangaroos, variant.size())?;
+        Self::dispatch_once_raw(ctx, &pipeline, &buffers, num_kangaroos, variant.size(), DEFAULT_GPU_POLL_TIMEOUT)?;
         let elapsed = start.elapsed().as_millis();
 
         Ok((pipeline, elapsed))
@@ -352,6 +358,7 @@ impl KangarooSolver {
             workgroup_size,
             current_slot: 0,
             prev_submission: None,
+            gpu_poll_timeout: DEFAULT_GPU_POLL_TIMEOUT,
         };
 
         // Auto-calibrate steps_per_call
@@ -526,12 +533,12 @@ impl KangarooSolver {
                 .device
                 .poll(wgpu::PollType::Wait {
                     submission_index: Some(submission),
-                    timeout: Some(GPU_POLL_TIMEOUT),
+                    timeout: Some(self.gpu_poll_timeout),
                 })
                 .map_err(|e| anyhow!("GPU poll timed out or failed reading DP count: {e:?}"))?;
 
             let map_result = rx
-                .recv_timeout(GPU_POLL_TIMEOUT)
+                .recv_timeout(self.gpu_poll_timeout)
                 .map_err(|e| anyhow!("DP count map callback not received within timeout: {e}"))?;
             map_result.map_err(|e| anyhow!("Failed to map DP count buffer: {e:?}"))?;
 
@@ -566,12 +573,12 @@ impl KangarooSolver {
                 .device
                 .poll(wgpu::PollType::Wait {
                     submission_index: Some(submission),
-                    timeout: Some(GPU_POLL_TIMEOUT),
+                    timeout: Some(self.gpu_poll_timeout),
                 })
                 .map_err(|e| anyhow!("GPU poll timed out or failed reading DP payload: {e:?}"))?;
 
             let map_result = rx
-                .recv_timeout(GPU_POLL_TIMEOUT)
+                .recv_timeout(self.gpu_poll_timeout)
                 .map_err(|e| anyhow!("DP payload map callback not received within timeout: {e}"))?;
             map_result.map_err(|e| anyhow!("Failed to map DP payload buffer: {e:?}"))?;
 
@@ -696,6 +703,7 @@ impl KangarooSolver {
             &self.buffers,
             self.num_kangaroos,
             self.workgroup_size,
+            self.gpu_poll_timeout,
         )
     }
 
@@ -705,6 +713,7 @@ impl KangarooSolver {
         buffers: &GpuBuffers,
         num_kangaroos: u32,
         workgroup_size: u32,
+        gpu_poll_timeout: Duration,
     ) -> Result<()> {
         let mut encoder = ctx
             .device
@@ -727,7 +736,7 @@ impl KangarooSolver {
         ctx.device
             .poll(wgpu::PollType::Wait {
                 submission_index: None,
-                timeout: Some(GPU_POLL_TIMEOUT),
+                timeout: Some(gpu_poll_timeout),
             })
             .map_err(|e| anyhow!("GPU poll timed out or failed during dispatch: {e:?}"))?;
 
