@@ -7,7 +7,5 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:10001
  * Running on http://192.168.3.19:10001
 Press CTRL+C to quit
-100.111.174.108 - - [07/Sep/2026 23:59:28] "GET /socket.io/?EIO=4&transport=polling&t=Q1-J_de HTTP/1.1" 200 -
-100.111.174.108 - - [07/Sep/2026 23:59:28] "POST /socket.io/?EIO=4&transport=polling&t=Q1-K08Z&sid=M1ck8xZ8VktPh4Z2AAAA HTTP/1.1" 200 -
-100.111.174.108 - - [07/Sep/2026 23:59:28] "GET /socket.io/?EIO=4&transport=polling&t=Q1-K08a&sid=M1ck8xZ8VktPh4Z2AAAA HTTP/1.1" 200 -
-127.0.0.1 - - [08/Sep/2026 00:00:09] "GET /api/status HTTP/1.1" 200 -
+127.0.0.1 - - [08/Sep/2026 11:09:14] "GET /api/status HTTP/1.1" 200 -
+127.0.0.1 - - [08/Sep/2026 11:09:38] "GET /api/p2pk_alerts HTTP/1.1" 200 -

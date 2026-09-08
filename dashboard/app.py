@@ -379,6 +379,24 @@ def handle_connect():
             emit('status_update', data)
 
 
+
+@app.route('/api/p2pk_alerts')
+def api_p2pk_alerts():
+    """Obter alertas P2PK pendentes"""
+    import sqlite3
+    from pathlib import Path
+    
+    DB_PATH = Path.home() / 'kangaroo' / 'dashboard' / 'p2pk_monitor.db'
+    
+    conn = sqlite3.connect(str(DB_PATH))
+    c = conn.cursor()
+    c.execute('SELECT * FROM p2pk_alerts WHERE status = "pending" ORDER BY created_at DESC LIMIT 10')
+    columns = [desc[0] for desc in c.description]
+    results = [dict(zip(columns, row)) for row in c.fetchall()]
+    conn.close()
+    
+    return jsonify(results)
+
 if __name__ == '__main__':
     init_db()
     
